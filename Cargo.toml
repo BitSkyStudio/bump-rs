@@ -1,0 +1,8 @@
+[package]
+name = "bump-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nalgebra = "0.33"
+generational-arena = "0.2"
