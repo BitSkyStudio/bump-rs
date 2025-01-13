@@ -34,7 +34,7 @@ impl CollisionResponse{
             }
             CollisionResponse::Bounce => {
                 goal = if collision.info.movement.magnitude_squared() != 0.{
-                    let bn = goal - collision.info.touch;
+                    let mut bn = goal - collision.info.touch;
                     if collision.info.normal.x == 0.{
                         bn.y *= -1.;
                     } else {
@@ -133,7 +133,7 @@ impl Rectangle{
             ti = -wi * hi;
             overlaps = true;
             if d.magnitude_squared() == 0. {
-                let p = diff_rect.nearest_corner(Vec2f::new(0., 0.));
+                let mut p = diff_rect.nearest_corner(Vec2f::new(0., 0.));
                 if p.x.abs() < p.y.abs() {
                     p.y = 0.;
                 } else {
@@ -210,13 +210,13 @@ impl<T: Collidable> World<T>{
         }
     }
     pub fn get_item(&self, item: Index) -> Option<&T>{
-        self.items.get(item).map(|i|i.data)
+        self.items.get(item).map(|i|&i.data)
     }
     pub fn get_rect(&self, item: Index) -> Option<Rectangle>{
         self.items.get(item).map(|i|i.rect)
     }
     pub fn get_item_mut(&mut self, item: Index) -> Option<&mut T>{
-        self.items.get_mut(item).map(|i|i.data)
+        self.items.get_mut(item).map(|i|&mut i.data)
     }
     pub fn contains(&self, item: Index) -> bool{
         self.items.contains(item)
@@ -295,7 +295,7 @@ impl<T: Collidable> World<T>{
         }
     }
     pub fn update(&mut self, index: Index, new_rect: Rectangle) -> Option<Rectangle>{
-        let old_rect = self.get_rect(*index)?;
+        let old_rect = self.get_rect(index)?;
         let new_rect_cells = self.grid.cell_rect(new_rect);
         let old_rect_cells = self.grid.cell_rect(old_rect);
         if new_rect_cells != old_rect_cells{
@@ -303,10 +303,10 @@ impl<T: Collidable> World<T>{
             let new_cells = new_rect_cells.into_iter().collect::<HashSet<_>>();
             let old_cells = old_rect_cells.into_iter().collect::<HashSet<_>>();
             for add_cells in new_cells.difference(&old_cells){
-                self.add_item_to_cell(*add_cells, *index);
+                self.add_item_to_cell(*add_cells, index);
             }
             for remove_cells in old_cells.difference(&new_cells){
-                self.remove_item_from_cell(*remove_cells, *index);
+                self.remove_item_from_cell(*remove_cells, index);
             }
         }
         self.items.get_mut(index).unwrap().rect = new_rect;
@@ -360,7 +360,7 @@ impl<T: Collidable> World<T>{
             if let Some(cell) = self.cells.get(&cell_index){
                 for other in cell{
                     if visited.insert(*other) && filter(*other){
-                        let response = self.items.get(item).unwrap().data.collision_response(self.items.get(*other).unwrap());
+                        let response = self.items.get(item).unwrap().data.collision_response(&self.items.get(*other).unwrap().data);
                         if let Some(response) = response {
                             let other_rect = self.items.get(*other).unwrap().rect;
                             if let Some(collision) = rect.detect_collision(other_rect, goal) {
@@ -420,7 +420,7 @@ impl CellGrid{
             (0, f64::INFINITY, f64::INFINITY)
         }
     }
-    fn traverse(self, p1: Vec2f, p2: Vec2f, f: impl Fn(CellIndex)){
+    fn traverse(self, p1: Vec2f, p2: Vec2f, mut f: impl FnMut(CellIndex)){
         let mut c1 = self.to_cell(p1);
         let c2 = self.to_cell(p2);
         let (step_x, dx, mut tx) = self.traverse_init_step(c1.x as f64, p1.x, p2.x);
