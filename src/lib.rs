@@ -13,7 +13,7 @@ impl CollisionResponse{
     pub fn response<T: Collidable>(self, world: &World<T>, collision: &Collision, collisions: Vec<Collision>, item: Index, rect: Rectangle, mut goal: Vec2f, filter: impl Fn(Index) -> bool) -> (Vec2f, Vec<Collision>){
         match self{
             CollisionResponse::Touch => {
-                (collisions[0].info.touch, Vec::new())
+                (collision.info.touch, Vec::new())
             }
             CollisionResponse::Cross => {
                 //original uses another world.project, maybe this causes invalid behaviour?
@@ -120,7 +120,7 @@ impl Rectangle{
         }
         Some((ti1, ti2, n1, n2))
     }
-    fn detect_collision(self, other: Rectangle, goal: Vec2f) -> Option<RectCollision>{
+    pub fn detect_collision(self, other: Rectangle, goal: Vec2f) -> Option<RectCollision>{
         let d = Vec2f::new(goal.x - self.position.x, goal.y - self.position.y);
         let diff_rect = self.mink_diff(other);
         let overlaps;
@@ -402,12 +402,12 @@ struct CellGrid{
 }
 impl CellGrid{
     fn to_world(self, cell: CellIndex) -> Vec2f{
-        Vec2f::new((cell.x-1) as f64 * self.cell_size, (cell.y-1) as f64 * self.cell_size)
+        Vec2f::new((cell.x) as f64 * self.cell_size, (cell.y) as f64 * self.cell_size)
     }
     fn to_cell(self, pos: Vec2f) -> CellIndex{
         CellIndex{
-            x: (pos.x / self.cell_size).floor() as i32 + 1,
-            y: (pos.y / self.cell_size).floor() as i32 + 1,
+            x: (pos.x / self.cell_size).floor() as i32,
+            y: (pos.y / self.cell_size).floor() as i32,
         }
     }
     fn traverse_init_step(self, ct: f64, t1: f64, t2: f64) -> (i32, f64, f64){
