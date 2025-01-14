@@ -10,7 +10,7 @@ pub enum CollisionResponse{
     Bounce,
 }
 impl CollisionResponse{
-    pub fn response<T: Collidable>(self, world: &World<T>, collision: &Collision, collisions: Vec<Collision>, item: Index, rect: Rectangle, mut goal: Vec2f, filter: impl Fn(Index) -> bool) -> (Vec2f, Vec<Collision>){
+    pub fn response<T>(self, world: &World<T>, collision: &Collision, collisions: Vec<Collision>, item: Index, rect: Rectangle, mut goal: Vec2f, filter: impl Fn(Index) -> bool, collider: impl Fn(Index, &T) -> Option<CollisionResponse>) -> (Vec2f, Vec<Collision>){
         match self{
             CollisionResponse::Touch => {
                 (collision.info.touch, Vec::new())
@@ -30,7 +30,7 @@ impl CollisionResponse{
                 (goal, world.project(item, Rectangle{
                     position: collision.info.touch,
                     size: rect.size,
-                }, goal, filter))
+                }, goal, filter, collider))
             }
             CollisionResponse::Bounce => {
                 goal = if collision.info.movement.magnitude_squared() != 0.{
@@ -47,7 +47,7 @@ impl CollisionResponse{
                 (goal, world.project(item, Rectangle{
                     position: collision.info.touch,
                     size: rect.size,
-                }, goal, filter))
+                }, goal, filter, collider))
             }
         }
     }
@@ -187,16 +187,16 @@ pub struct RectCollision{
 #[derive(Copy, Clone)]
 pub struct Collision{
     pub info: RectCollision,
-    pub item: Index,
-    pub other: Index,
+    pub item: ItemId,
+    pub other: ItemId,
     pub response_type: CollisionResponse,
 }
-pub struct World<T: Collidable>{
+pub struct World<T>{
     items: Arena<WorldItem<T>>,
     cells: HashMap<CellIndex, Vec<Index>>,
     grid: CellGrid,
 }
-impl<T: Collidable> World<T>{
+impl<T> World<T>{
     pub fn new() -> Self{
         Self::with_cell_size(64.)
     }
@@ -209,37 +209,37 @@ impl<T: Collidable> World<T>{
             },
         }
     }
-    pub fn get_item(&self, item: Index) -> Option<&T>{
-        self.items.get(item).map(|i|&i.data)
+    pub fn get_item(&self, item: ItemId) -> Option<&T>{
+        self.items.get(item.0).map(|i|&i.data)
     }
-    pub fn get_rect(&self, item: Index) -> Option<Rectangle>{
-        self.items.get(item).map(|i|i.rect)
+    pub fn get_rect(&self, item: ItemId) -> Option<Rectangle>{
+        self.items.get(item.0).map(|i|i.rect)
     }
-    pub fn get_item_mut(&mut self, item: Index) -> Option<&mut T>{
-        self.items.get_mut(item).map(|i|&mut i.data)
+    pub fn get_item_mut(&mut self, item: ItemId) -> Option<&mut T>{
+        self.items.get_mut(item.0).map(|i|&mut i.data)
     }
-    pub fn contains(&self, item: Index) -> bool{
-        self.items.contains(item)
+    pub fn contains(&self, item: ItemId) -> bool{
+        self.items.contains(item.0)
     }
-    pub fn query_rect(&self, rect: Rectangle) -> Vec<Index> {
+    pub fn query_rect(&self, rect: Rectangle) -> Vec<ItemId> {
         let mut query = Vec::new();
         for cell_index in self.grid.cell_rect(rect).into_iter() {
             if let Some(cell) = self.cells.get(&cell_index) {
                 for other in cell {
-                    if rect.intersects(self.get_rect(*other).unwrap()){
-                        query.push(*other);
+                    if rect.intersects(self.get_rect(ItemId(*other)).unwrap()){
+                        query.push(ItemId(*other));
                     }
                 }
             }
         }
         query
     }
-    pub fn query_point(&self, point: Vec2f) -> Vec<Index>{
+    pub fn query_point(&self, point: Vec2f) -> Vec<ItemId>{
         let mut query = Vec::new();
         if let Some(cell) = self.cells.get(&self.grid.to_cell(point)){
             for other in cell {
-                if self.get_rect(*other).unwrap().contains_point(point) {
-                    query.push(*other);
+                if self.get_rect(ItemId(*other)).unwrap().contains_point(point) {
+                    query.push(ItemId(*other));
                 }
             }
         }
@@ -253,12 +253,12 @@ impl<T: Collidable> World<T>{
             if let Some(cell) = self.cells.get(&cell_index){
                 for other in cell {
                     if visited.insert(*other) {
-                        let rect = self.get_rect(*other).unwrap();
+                        let rect = self.get_rect(ItemId(*other)).unwrap();
                         if let Some((ti1, ti2, _, _)) = rect.segment_intersection_indices(start, end, 0., 1.){
                             if (0. < ti1 && ti1 < 1.) || (0. < ti2 && ti2 < 1.){
                                 let (tii0, tii1, _, _) = rect.segment_intersection_indices(start, end, -f64::INFINITY, f64::INFINITY).unwrap();
                                 query.push((LineSegmentQuery{
-                                    item: *other,
+                                    item: ItemId(*other),
                                     ti1,
                                     ti2,
                                     p1: start + d * ti1,
@@ -273,7 +273,7 @@ impl<T: Collidable> World<T>{
         query.sort_by(|q1, q2|q1.1.total_cmp(&q2.1));
         query.into_iter().map(|q|q.0).collect()
     }
-    pub fn add(&mut self, item: T, rect: Rectangle) -> Index{
+    pub fn add(&mut self, item: T, rect: Rectangle) -> ItemId{
         let index = self.items.insert(WorldItem{
             data: item,
             rect,
@@ -281,20 +281,20 @@ impl<T: Collidable> World<T>{
         for cell in self.grid.cell_rect(rect).into_iter(){
             self.add_item_to_cell(cell, index);
         }
-        index
+        ItemId(index)
     }
-    pub fn remove(&mut self, index: Index) -> Option<(T, Rectangle)>{
-        match self.items.remove(index){
+    pub fn remove(&mut self, index: ItemId) -> Option<(T, Rectangle)>{
+        match self.items.remove(index.0){
             Some(world_item) => {
                 for cell in self.grid.cell_rect(world_item.rect).into_iter(){
-                    self.remove_item_from_cell(cell, index);
+                    self.remove_item_from_cell(cell, index.0);
                 }
                 Some((world_item.data, world_item.rect))
             }
             None => None,
         }
     }
-    pub fn update(&mut self, index: Index, new_rect: Rectangle) -> Option<Rectangle>{
+    pub fn update(&mut self, index: ItemId, new_rect: Rectangle) -> Option<Rectangle>{
         let old_rect = self.get_rect(index)?;
         let new_rect_cells = self.grid.cell_rect(new_rect);
         let old_rect_cells = self.grid.cell_rect(old_rect);
@@ -303,30 +303,30 @@ impl<T: Collidable> World<T>{
             let new_cells = new_rect_cells.into_iter().collect::<HashSet<_>>();
             let old_cells = old_rect_cells.into_iter().collect::<HashSet<_>>();
             for add_cells in new_cells.difference(&old_cells){
-                self.add_item_to_cell(*add_cells, index);
+                self.add_item_to_cell(*add_cells, index.0);
             }
             for remove_cells in old_cells.difference(&new_cells){
-                self.remove_item_from_cell(*remove_cells, index);
+                self.remove_item_from_cell(*remove_cells, index.0);
             }
         }
-        self.items.get_mut(index).unwrap().rect = new_rect;
+        self.items.get_mut(index.0).unwrap().rect = new_rect;
         Some(old_rect)
     }
-    pub fn check(&self, index: Index, mut goal: Vec2f) -> Option<(Vec2f, Vec<Collision>)>{
+    pub fn check(&self, index: ItemId, mut goal: Vec2f, collider: impl Fn(ItemId, &T) -> Option<CollisionResponse>) -> Option<(Vec2f, Vec<Collision>)>{
         let mut visited = HashSet::new();
         let rect = self.get_rect(index)?;
         let mut collisions = Vec::new();
-        let mut projected_collisions = self.project(index, rect, goal, |index|!visited.contains(&index));
+        let mut projected_collisions = self.project(index.0, rect, goal, |index|!visited.contains(&index), |item, data|collider(ItemId(item), data));
         while projected_collisions.len() > 0{
             let collision = projected_collisions.remove(0);
             collisions.push(collision);
-            visited.insert(collision.other);
-            (goal, projected_collisions) = collision.response_type.response(self, &collision, projected_collisions, index, rect, goal, |index|!visited.contains(&index));
+            visited.insert(collision.other.0);
+            (goal, projected_collisions) = collision.response_type.response(self, &collision, projected_collisions, index.0, rect, goal, |index|!visited.contains(&index), |item, data|collider(ItemId(item), data));
         }
         Some((goal, collisions))
     }
-    pub fn move_item(&mut self, index: Index, goal: Vec2f) -> Option<(Vec2f, Vec<Collision>)>{
-        let checked = self.check(index, goal)?;
+    pub fn move_item(&mut self, index: ItemId, goal: Vec2f, collider: impl Fn(ItemId, &T) -> Option<CollisionResponse>) -> Option<(Vec2f, Vec<Collision>)>{
+        let checked = self.check(index, goal, collider)?;
         self.update(index, Rectangle{
             position: checked.0,
             size: self.get_rect(index).unwrap().size,
@@ -348,7 +348,7 @@ impl<T: Collidable> World<T>{
             self.cells.remove(&cell);
         }
     }
-    fn project(&self, item: Index, rect: Rectangle, goal: Vec2f, filter: impl Fn(Index) -> bool) -> Vec<Collision>{
+    fn project(&self, item: Index, rect: Rectangle, goal: Vec2f, filter: impl Fn(Index) -> bool, collider: impl Fn(Index, &T) -> Option<CollisionResponse>) -> Vec<Collision>{
         let mut collisions = Vec::new();
         let mut visited = HashSet::new();
         visited.insert(item);
@@ -360,14 +360,14 @@ impl<T: Collidable> World<T>{
             if let Some(cell) = self.cells.get(&cell_index){
                 for other in cell{
                     if visited.insert(*other) && filter(*other){
-                        let response = self.items.get(item).unwrap().data.collision_response(&self.items.get(*other).unwrap().data);
+                        let response = collider(*other, self.get_item(ItemId(*other)).unwrap());
                         if let Some(response) = response {
                             let other_rect = self.items.get(*other).unwrap().rect;
                             if let Some(collision) = rect.detect_collision(other_rect, goal) {
                                 collisions.push(Collision {
                                     info: collision,
-                                    item,
-                                    other: *other,
+                                    item: ItemId(item),
+                                    other: ItemId(*other),
                                     response_type: response,
                                 })
                             }
@@ -390,12 +390,14 @@ impl<T: Collidable> World<T>{
 }
 #[derive(Copy, Clone)]
 pub struct LineSegmentQuery{
-    item: Index,
+    item: ItemId,
     ti1: f64,
     ti2: f64,
     p1: Vec2f,
     p2: Vec2f,
 }
+#[derive(Copy, Clone)]
+pub struct ItemId(Index);
 #[derive(Copy, Clone)]
 struct CellGrid{
     cell_size: f64,
@@ -501,10 +503,7 @@ impl CellRectangle{
         }
     }
 }
-struct WorldItem<T: Collidable>{
+struct WorldItem<T>{
     data: T,
     rect: Rectangle,
-}
-pub trait Collidable{
-    fn collision_response(&self, other: &Self) -> Option<CollisionResponse>;
 }
