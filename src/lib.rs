@@ -312,6 +312,12 @@ impl<T> World<T>{
         self.items.get_mut(index.0).unwrap().rect = new_rect;
         Some(old_rect)
     }
+    pub fn update_position(&mut self, index: ItemId, new_position: Vec2f) -> Option<Vec2f>{
+        self.update(index, Rectangle{
+            position: new_position,
+            size: self.get_rect(index).unwrap().size,
+        }).map(|rect|rect.position)
+    }
     pub fn check(&self, index: ItemId, mut goal: Vec2f, collider: impl Fn(ItemId, &T) -> Option<CollisionResponse>) -> Option<(Vec2f, Vec<Collision>)>{
         let mut visited = HashSet::new();
         let rect = self.get_rect(index)?;
