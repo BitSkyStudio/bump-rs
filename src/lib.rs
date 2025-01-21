@@ -396,11 +396,11 @@ impl<T> World<T>{
 }
 #[derive(Copy, Clone)]
 pub struct LineSegmentQuery{
-    item: ItemId,
-    ti1: f64,
-    ti2: f64,
-    p1: Vec2f,
-    p2: Vec2f,
+    pub item: ItemId,
+    pub ti1: f64,
+    pub ti2: f64,
+    pub p1: Vec2f,
+    pub p2: Vec2f,
 }
 #[derive(Copy, Clone)]
 pub struct ItemId(Index);
