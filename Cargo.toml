@@ -1,7 +1,11 @@
 [package]
 name = "bump-rs"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
+license = "MIT"
+description = "collision detection library based on bump.lua"
+repository = "https://github.com/BitSkyStudio/bump-rs"
+keywords = ["collision"]
 
 [dependencies]
 nalgebra = "0.33"
