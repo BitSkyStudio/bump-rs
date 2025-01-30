@@ -409,9 +409,6 @@ struct CellGrid{
     cell_size: f64,
 }
 impl CellGrid{
-    fn to_world(self, cell: CellIndex) -> Vec2f{
-        Vec2f::new((cell.x) as f64 * self.cell_size, (cell.y) as f64 * self.cell_size)
-    }
     fn to_cell(self, pos: Vec2f) -> CellIndex{
         CellIndex{
             x: (pos.x / self.cell_size).floor() as i32,
