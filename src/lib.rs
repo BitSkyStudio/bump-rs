@@ -418,9 +418,9 @@ impl CellGrid{
     fn traverse_init_step(self, ct: f64, t1: f64, t2: f64) -> (i32, f64, f64){
         let v = t2 - t1;
         if v > 0. {
-            (1, self.cell_size / v, ((ct + v) * self.cell_size - t1) / v)
+            (1, self.cell_size / v, ((ct + v + 1.) * self.cell_size - t1) / v)
         } else if v < 0. {
-            (-1, -self.cell_size / v, ((ct + v - 1.) * self.cell_size - t1) / v)
+            (-1, -self.cell_size / v, ((ct + v) * self.cell_size - t1) / v)
         } else {
             (0, f64::INFINITY, f64::INFINITY)
         }
