@@ -370,12 +370,14 @@ impl<T> World<T>{
                         if let Some(response) = response {
                             let other_rect = self.items.get(*other).unwrap().rect;
                             if let Some(collision) = rect.detect_collision(other_rect, goal) {
-                                collisions.push(Collision {
-                                    info: collision,
-                                    item: ItemId(item),
-                                    other: ItemId(*other),
-                                    response_type: response,
-                                })
+                                if collision.ti >= 0. {
+                                    collisions.push(Collision {
+                                        info: collision,
+                                        item: ItemId(item),
+                                        other: ItemId(*other),
+                                        response_type: response,
+                                    });
+                                }
                             }
                         }
                     }
