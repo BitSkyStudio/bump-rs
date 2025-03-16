@@ -10,7 +10,7 @@ pub enum CollisionResponse{
     Bounce,
 }
 impl CollisionResponse{
-    pub fn response<T>(self, world: &World<T>, collision: &Collision, collisions: Vec<Collision>, item: Index, rect: Rectangle, mut goal: Vec2f, filter: impl Fn(Index) -> bool, collider: impl Fn(Index, &T) -> Option<CollisionResponse>) -> (Vec2f, Vec<Collision>){
+    pub fn response<T>(self, world: &World<T>, collision: &Collision, collisions: Vec<Collision>, item: Index, rect: Rectangle, mut goal: Vec2f, filter: impl Fn(Index) -> bool, collider: impl Fn(Index, &T, &RectCollision) -> Option<CollisionResponse>) -> (Vec2f, Vec<Collision>){
         match self{
             CollisionResponse::Touch => {
                 (collision.info.touch, Vec::new())
@@ -318,20 +318,20 @@ impl<T> World<T>{
             size: self.get_rect(index).unwrap().size,
         }).map(|rect|rect.position)
     }
-    pub fn check(&self, index: ItemId, mut goal: Vec2f, collider: impl Fn(ItemId, &T) -> Option<CollisionResponse>) -> Option<(Vec2f, Vec<Collision>)>{
+    pub fn check(&self, index: ItemId, mut goal: Vec2f, collider: impl Fn(ItemId, &T, &RectCollision) -> Option<CollisionResponse>) -> Option<(Vec2f, Vec<Collision>)>{
         let mut visited = HashSet::new();
         let rect = self.get_rect(index)?;
         let mut collisions = Vec::new();
-        let mut projected_collisions = self.project(index.0, rect, goal, |index|!visited.contains(&index), |item, data|collider(ItemId(item), data));
+        let mut projected_collisions = self.project(index.0, rect, goal, |index|!visited.contains(&index), |item, data, info|collider(ItemId(item), data, info));
         while projected_collisions.len() > 0{
             let collision = projected_collisions.remove(0);
             collisions.push(collision);
             visited.insert(collision.other.0);
-            (goal, projected_collisions) = collision.response_type.response(self, &collision, projected_collisions, index.0, rect, goal, |index|!visited.contains(&index), |item, data|collider(ItemId(item), data));
+            (goal, projected_collisions) = collision.response_type.response(self, &collision, projected_collisions, index.0, rect, goal, |index|!visited.contains(&index), |item, data, info|collider(ItemId(item), data, info));
         }
         Some((goal, collisions))
     }
-    pub fn move_item(&mut self, index: ItemId, goal: Vec2f, collider: impl Fn(ItemId, &T) -> Option<CollisionResponse>) -> Option<(Vec2f, Vec<Collision>)>{
+    pub fn move_item(&mut self, index: ItemId, goal: Vec2f, collider: impl Fn(ItemId, &T, &RectCollision) -> Option<CollisionResponse>) -> Option<(Vec2f, Vec<Collision>)>{
         let checked = self.check(index, goal, collider)?;
         self.update(index, Rectangle{
             position: checked.0,
@@ -354,7 +354,7 @@ impl<T> World<T>{
             self.cells.remove(&cell);
         }
     }
-    fn project(&self, item: Index, rect: Rectangle, goal: Vec2f, filter: impl Fn(Index) -> bool, collider: impl Fn(Index, &T) -> Option<CollisionResponse>) -> Vec<Collision>{
+    fn project(&self, item: Index, rect: Rectangle, goal: Vec2f, filter: impl Fn(Index) -> bool, collider: impl Fn(Index, &T, &RectCollision) -> Option<CollisionResponse>) -> Vec<Collision>{
         let mut collisions = Vec::new();
         let mut visited = HashSet::new();
         visited.insert(item);
@@ -366,17 +366,17 @@ impl<T> World<T>{
             if let Some(cell) = self.cells.get(&cell_index){
                 for other in cell{
                     if visited.insert(*other) && filter(*other){
-                        let response = collider(*other, self.get_item(ItemId(*other)).unwrap());
-                        if let Some(response) = response {
-                            let other_rect = self.items.get(*other).unwrap().rect;
-                            if let Some(collision) = rect.detect_collision(other_rect, goal) {
-                                if collision.ti >= 0. {
+                        let other_rect = self.items.get(*other).unwrap().rect;
+                        if let Some(collision) = rect.detect_collision(other_rect, goal) {
+                            if collision.ti >= 0. {
+                                let response = collider(*other, self.get_item(ItemId(*other)).unwrap(), &collision);
+                                if let Some(response) = response {
                                     collisions.push(Collision {
                                         info: collision,
                                         item: ItemId(item),
                                         other: ItemId(*other),
                                         response_type: response,
-                                    });
+                                    })
                                 }
                             }
                         }
