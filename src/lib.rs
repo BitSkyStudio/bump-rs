@@ -404,7 +404,7 @@ pub struct LineSegmentQuery{
     pub p1: Vec2f,
     pub p2: Vec2f,
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub struct ItemId(Index);
 #[derive(Copy, Clone)]
 struct CellGrid{
