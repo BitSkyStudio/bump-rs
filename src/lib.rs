@@ -222,17 +222,17 @@ impl<T> World<T>{
         self.items.contains(item.0)
     }
     pub fn query_rect(&self, rect: Rectangle) -> Vec<ItemId> {
-        let mut query = Vec::new();
+        let mut query = HashSet::new();
         for cell_index in self.grid.cell_rect(rect).into_iter() {
             if let Some(cell) = self.cells.get(&cell_index) {
                 for other in cell {
                     if rect.intersects(self.get_rect(ItemId(*other)).unwrap()){
-                        query.push(ItemId(*other));
+                        query.insert(ItemId(*other));
                     }
                 }
             }
         }
-        query
+        query.into_iter().collect()
     }
     pub fn query_point(&self, point: Vec2f) -> Vec<ItemId>{
         let mut query = Vec::new();
