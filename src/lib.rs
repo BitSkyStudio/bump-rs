@@ -368,16 +368,14 @@ impl<T> World<T>{
                     if visited.insert(*other) && filter(*other){
                         let other_rect = self.items.get(*other).unwrap().rect;
                         if let Some(collision) = rect.detect_collision(other_rect, goal) {
-                            if collision.ti >= 0. {
-                                let response = collider(*other, self.get_item(ItemId(*other)).unwrap(), &collision);
-                                if let Some(response) = response {
-                                    collisions.push(Collision {
-                                        info: collision,
-                                        item: ItemId(item),
-                                        other: ItemId(*other),
-                                        response_type: response,
-                                    })
-                                }
+                            let response = collider(*other, self.get_item(ItemId(*other)).unwrap(), &collision);
+                            if let Some(response) = response {
+                                collisions.push(Collision {
+                                    info: collision,
+                                    item: ItemId(item),
+                                    other: ItemId(*other),
+                                    response_type: response,
+                                })
                             }
                         }
                     }
